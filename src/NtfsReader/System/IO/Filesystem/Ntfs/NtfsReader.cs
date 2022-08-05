@@ -343,7 +343,7 @@ namespace System.IO.Filesystem.Ntfs
 
             public string Name
             {
-                get 
+                get
                 {
                     return _reader.GetNameFromIndex(_reader._streams[_parentNode.NodeIndex][_streamIndex].NameIndex);
                 }
@@ -359,7 +359,7 @@ namespace System.IO.Filesystem.Ntfs
 
             public IList<IFragment> Fragments
             {
-                get 
+                get
                 {
                     //if ((_reader._retrieveMode & RetrieveMode.Fragments) != RetrieveMode.Fragments)
                     //    throw new NotSupportedException("The fragments haven't been retrieved. Make sure to use the proper RetrieveMode.");
@@ -436,7 +436,7 @@ namespace System.IO.Filesystem.Ntfs
 
             public IList<IStream> Streams
             {
-                get 
+                get
                 {
                     if (_reader._streams == null)
                         throw new NotSupportedException("The streams haven't been retrieved. Make sure to use the proper RetrieveMode.");
@@ -457,7 +457,7 @@ namespace System.IO.Filesystem.Ntfs
 
             public DateTime CreationTime
             {
-                get 
+                get
                 {
                     if (_reader._standardInformations == null)
                         throw new NotSupportedException("The StandardInformation haven't been retrieved. Make sure to use the proper RetrieveMode.");
@@ -468,7 +468,7 @@ namespace System.IO.Filesystem.Ntfs
 
             public DateTime LastChangeTime
             {
-                get 
+                get
                 {
                     if (_reader._standardInformations == null)
                         throw new NotSupportedException("The StandardInformation haven't been retrieved. Make sure to use the proper RetrieveMode.");
@@ -479,7 +479,7 @@ namespace System.IO.Filesystem.Ntfs
 
             public DateTime LastAccessTime
             {
-                get 
+                get
                 {
                     if (_reader._standardInformations == null)
                         throw new NotSupportedException("The StandardInformation haven't been retrieved. Make sure to use the proper RetrieveMode.");
@@ -894,7 +894,7 @@ namespace System.IO.Filesystem.Ntfs
                     /* Decode the RunData and calculate the next Lcn. */
                     Int32 RunLengthSize = (RunData[Index] & 0x0F);
                     Int32 RunOffsetSize = ((RunData[Index] & 0xF0) >> 4);
-                    
+
                     if (++Index >= RunDataLength)
                         throw new Exception("Error: datarun is longer than buffer, the MFT may be corrupt.");
 
@@ -1029,7 +1029,7 @@ namespace System.IO.Filesystem.Ntfs
                             streamNameIndex = GetNameIndex(new string((char*)(ptr + AttributeOffset + attribute->NameOffset), 0, (int)attribute->NameLength));
 
                         //find or create the stream
-                        Stream stream = 
+                        Stream stream =
                             SearchStream(streams, attribute->AttributeType, streamNameIndex);
 
                         if (stream == null)
@@ -1242,12 +1242,12 @@ namespace System.IO.Filesystem.Ntfs
                 if (++index >= runDataLength)
                     throw new Exception("Error: datarun is longer than buffer, the MFT may be corrupt.");
 
-                Int64 runLength = 
+                Int64 runLength =
                     ProcessRunLength(runData, runDataLength, runLengthSize, ref index);
 
                 Int64 runOffset =
                     ProcessRunOffset(runData, runDataLength, runOffsetSize, ref index);
-             
+
                 lcn += runOffset;
                 vcn += runLength;
 
@@ -1266,7 +1266,7 @@ namespace System.IO.Filesystem.Ntfs
                 );
             }
         }
-        
+
         /// <summary>
         /// Process an actual MFT record from the buffer
         /// </summary>
@@ -1297,60 +1297,13 @@ namespace System.IO.Filesystem.Ntfs
 
             //make the file appear in the rootdirectory by default
             node.ParentNodeIndex = ROOTDIRECTORY;
-            
+
             if ((ntfsFileRecordHeader->Flags & 2) == 2)
                 node.Attributes |= Attributes.Directory;
 
             ProcessAttributes(ref node, nodeIndex, buffer + ntfsFileRecordHeader->AttributeOffset, length - ntfsFileRecordHeader->AttributeOffset, 65535, 0, streams, isMftNode);
 
             return true;
-        }
-
-        /// <summary>
-        /// Process the bitmap data that contains information on inode usage.
-        /// </summary>
-        private unsafe byte[] ProcessBitmapData(List<Stream> streams)
-        {
-            UInt64 Vcn = 0;
-            UInt64 MaxMftBitmapBytes = 0;
-
-            Stream bitmapStream = SearchStream(streams, AttributeType.AttributeBitmap);
-            if (bitmapStream == null)
-                throw new Exception("No Bitmap Data");
-
-            foreach (Fragment fragment in bitmapStream.Fragments)
-            {
-                if (fragment.Lcn != VIRTUALFRAGMENT)
-                    MaxMftBitmapBytes += (fragment.NextVcn - Vcn) * _diskInfo.BytesPerSector * _diskInfo.SectorsPerCluster;
-
-                Vcn = fragment.NextVcn;
-            }
-
-            byte[] bitmapData = new byte[MaxMftBitmapBytes];
-
-            fixed (byte* bitmapDataPtr = bitmapData)
-            {
-                Vcn = 0;
-                UInt64 RealVcn = 0;
-
-                foreach (Fragment fragment in bitmapStream.Fragments)
-                {
-                    if (fragment.Lcn != VIRTUALFRAGMENT)
-                    {
-                        ReadFile(
-                            bitmapDataPtr + RealVcn * _diskInfo.BytesPerSector * _diskInfo.SectorsPerCluster,
-                            (fragment.NextVcn - Vcn) * _diskInfo.BytesPerSector * _diskInfo.SectorsPerCluster,
-                            fragment.Lcn * _diskInfo.BytesPerSector * _diskInfo.SectorsPerCluster
-                            );
-
-                        RealVcn = RealVcn + fragment.NextVcn - Vcn;
-                    }
-
-                    Vcn = fragment.NextVcn;
-                }
-            }
-
-            return bitmapData;
         }
 
         /// <summary>
@@ -1381,17 +1334,8 @@ namespace System.IO.Filesystem.Ntfs
                 if (!ProcessMftRecord(buffer, _diskInfo.BytesPerMftRecord, 0, out mftNode, mftStreams, true))
                     throw new Exception("Can't interpret Mft Record");
 
-                //the bitmap data contains all used inodes on the disk
-                _bitmapData =
-                    ProcessBitmapData(mftStreams);
-
-                OnBitmapDataAvailable();
-
                 Stream dataStream = SearchStream(mftStreams, AttributeType.AttributeData);
-
-                UInt32 maxInode = (UInt32)_bitmapData.Length * 8;
-                if (maxInode > (UInt32)(dataStream.Size / _diskInfo.BytesPerMftRecord))
-                    maxInode = (UInt32)(dataStream.Size / _diskInfo.BytesPerMftRecord);
+                var maxInode = (UInt32)(dataStream.Size / _diskInfo.BytesPerMftRecord);
 
                 Node[] nodes = new Node[maxInode];
                 nodes[0] = mftNode;
@@ -1420,21 +1364,17 @@ namespace System.IO.Filesystem.Ntfs
                 int fragmentCount = dataStream.Fragments.Count;
                 for (UInt32 nodeIndex = 1; nodeIndex < maxInode; nodeIndex++)
                 {
-                    // Ignore the Inode if the bitmap says it's not in use.
-                    if ((_bitmapData[nodeIndex >> 3] & BitmapMasks[nodeIndex % 8]) == 0)
-                        continue;
-
                     if (nodeIndex >= BlockEnd)
                     {
                         if (!ReadNextChunk(
                                 buffer,
-                                bufferSize, 
-                                nodeIndex, 
+                                bufferSize,
+                                nodeIndex,
                                 fragmentIndex,
-                                dataStream, 
-                                ref BlockStart, 
-                                ref BlockEnd, 
-                                ref Vcn, 
+                                dataStream,
+                                ref BlockStart,
+                                ref BlockEnd,
+                                ref Vcn,
                                 ref RealVcn))
                             break;
 
@@ -1470,10 +1410,10 @@ namespace System.IO.Filesystem.Ntfs
 
                 Trace.WriteLine(
                     string.Format(
-                        "{0:F3} MB of volume metadata has been read in {1:F3} s at {2:F3} MB/s", 
-                        (float)totalBytesRead / (1024*1024),
+                        "{0:F3} MB of volume metadata has been read in {1:F3} s at {2:F3} MB/s",
+                        (float)totalBytesRead / (1024 * 1024),
                         (float)stopwatch.Elapsed.TotalSeconds,
-                        ((float)totalBytesRead / (1024*1024)) / stopwatch.Elapsed.TotalSeconds
+                        ((float)totalBytesRead / (1024 * 1024)) / stopwatch.Elapsed.TotalSeconds
                     )
                 );
 
